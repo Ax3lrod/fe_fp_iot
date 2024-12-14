@@ -1,101 +1,170 @@
-import Image from "next/image";
+"use client";
+
+import React from "react";
+import { useState, useEffect } from "react";
+//import { User } from "@/types/entity/user";
+import { baseURL } from "@/lib/api";
+//import useNFCListener from "@/nfc/NFCListener";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [nfcUID, setnfcUID] = useState("");
+  //const [user, setUser] = useState<User | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [userCreatedAt, setUserCreatedAt] = useState("");
+  const [message, setMessage] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [address, setAddress] = useState("");
+  const [gender, setGender] = useState("");
+  const [dateofbirth, setDateofbirth] = useState("");
+
+  //const router = useRouter();
+
+  useEffect(() => {
+    const eventSource = new EventSource(`${baseURL}/events`);
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.message === "Kartu belum terdaftar") {
+        setIsRegistered(false);
+      } else {
+        setIsRegistered(true);
+      }
+
+      setMessage(data.message);
+
+      setnfcUID(data.user.nfc_uid);
+      setUserName(data.user.name);
+      setUserCreatedAt(data.user.created_at);
+      setAddress(data.user.address);
+      setGender(data.user.gender);
+      setDateofbirth(data.user.dob);
+
+      /*if(data.user){
+        setIsRegistered(true);
+      }else{
+        setIsRegistered(false);
+      }*/
+
+      eventSource.onerror = (error) => {
+        console.error("Error with EventSource:", error);
+        eventSource.close();
+      };
+
+      return () => {
+        eventSource.close(); // Pastikan koneksi ditutup saat komponen dibersihkan
+      };
+    };
+  }, []);
+
+  const handleRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setSuccess(false);
+
+    if (!name.trim()) {
+      setError("Name is required!");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${baseURL}/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nfc_uid: nfcUID,
+          name,
+          address,
+          gender,
+          dob: dateofbirth,
+        }),
+      });
+
+      if (response.ok) {
+        setSuccess(true);
+        setName("");
+
+        //router.push("/");
+      } else {
+        const result = await response.json();
+        setError(result.message || "Registration failed. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error during registration:", err);
+      setError("An unexpected error occurred. Please try again later.");
+    }
+  };
+
+  return (
+    <main className="w-full min-h-screen items-center bg-gray-400 flex justify-center">
+      {message === "" ? (
+        <section className="w-3/5 h-[500px] flex items-center justify-center bg-white rounded-lg shadow-lg text-black">
+          <h1>Waiting for NFC tag...</h1>
+        </section>
+      ) : isRegistered ? (
+        <section className="w-3/5 h-[500px] font-bold flex flex-col items-center justify-center bg-white rounded-lg shadow-lg text-black">
+          <h1>Welcome, {userName}!</h1>
+          <p>Member since: {new Date(userCreatedAt).toLocaleDateString()}</p>
+          <p>NFC UID: {nfcUID}</p>
+          <p>Address: {address}</p>
+          <p>Gender: {gender}</p>
+          <p>Date of Birth: {dateofbirth}</p>
+        </section>
+      ) : (
+        <form
+          className="w-3/5 h-[500px] flex flex-col items-center justify-center bg-white rounded-lg drop-shadow-lg p-5"
+          onSubmit={handleRegister}
+        >
+          <h1 className="text-xl font-semibold mb-4 text-black">
+            Hello new member! What&apos;s your name?
+          </h1>
+          <p className="text-black">NFC ID: {nfcUID}</p>
+          <input
+            type="text"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-[80%] p-2 mb-4 border border-gray-300 rounded-lg text-black"
+          />
+          <input
+            type="text"
+            placeholder="Your address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className="w-[80%] p-2 mb-4 border border-gray-300 rounded-lg text-black"
+          />
+          <input
+            type="text"
+            placeholder="Your gender"
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            className="w-[80%] p-2 mb-4 border border-gray-300 rounded-lg text-black"
+          />
+          <input
+            type="text"
+            placeholder="Your date of birth"
+            value={dateofbirth}
+            onChange={(e) => setDateofbirth(e.target.value)}
+            className="w-[80%] p-2 mb-4 border border-gray-300 rounded-lg text-black"
+          />
+          {error && <p className="text-red-500 mb-2">{error}</p>}
+          {success && (
+            <p className="text-green-500 mb-2">Registration successful!</p>
+          )}
+          <button
+            type="submit"
+            className="w-[80%] bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 transition"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+            Register
+          </button>
+        </form>
+      )}
+    </main>
   );
 }
